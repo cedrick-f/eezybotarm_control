@@ -1,0 +1,4 @@
+pillow
+continuous-threading
+pyserial
+numpy
