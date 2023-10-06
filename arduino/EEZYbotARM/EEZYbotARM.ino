@@ -14,6 +14,7 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x41);
 
 /********************************************************************/
 /* Longueurs de pulsation (pulse) et angles limites */
+/* ATTENTION : différent pour chaque robot !!! */
 const uint16_t  PULSEMIN[2] = {220, 330}; // This is the 'minimum' pulse length count (out of 4096)
 const uint16_t  PULSEMAX[2] = {400, 500}; // This is the 'maximum' pulse length count (out of 4096)
 
