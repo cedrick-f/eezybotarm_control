@@ -11,6 +11,7 @@ import numpy as np
 
 DIRPATH = 'python'
 SCALE = 0.3
+DELAY_DEFAULT = 30
 
 def create_serial():
     ports = get_ArduinoUno_ports()
@@ -533,7 +534,7 @@ class Cmd(continuous_threading.ContinuousThread):
             #print(">>>", c)
             self.gui.ser.write(bytes("<"+c+">", 'ascii'))
             if c != "of":
-                self.gui.S.reset()
+                self.gui.S.reset() # redemarrage du timer d'extinction
 
         if self.gui.ser.in_waiting:
             self.gui.receive(self.gui.ser.readline())
@@ -563,7 +564,6 @@ class SpinBoxLabel(tk.Frame):
 
 
 
-
 ###################################################################################
 # Classe définissant l'objet représentant la fenêtre principale de l'application
 ###################################################################################
@@ -584,7 +584,7 @@ class Application(tk.Tk):
         self.connecter()
 
         # Timer d'extinction des moteurs
-        self.S = ResettableTimer(5.0, self.switch_off)
+        self.S = ResettableTimer(self.interval.get(), self.switch_off)
         self.S.run()
 
         # Thread de commandes
@@ -761,8 +761,11 @@ class Application(tk.Tk):
 
         cm.pack(side = tk.LEFT, padx = 2, fill = tk.X, expand = False, anchor = tk.N)
 
+        # Zone de droite
+        zd = tk.Frame(self)
+
         # Barre de boutons
-        fb = tk.Frame(self, bg="red")
+        fb = tk.Frame(zd)
         # Un bouton pour centrer
         self.centerButton = tk.Button(fb, text = "Centrer",
                                       command = self.centrer)
@@ -779,8 +782,29 @@ class Application(tk.Tk):
                                        command = self.mng_connexion)
         self.connectButton.pack(side = tk.LEFT)
 
-        fb.pack()
+        fb.pack(side = tk.TOP)
 
+
+        # Réglages
+        fr = tk.Frame(zd)
+        self.interval = tk.IntVar(value=DELAY_DEFAULT)
+        self.interval_sb = SpinBoxLabel(fr, text = "Délai extinction (s) :",
+                                        textvariable = self.interval, 
+                                        from_ = 0, to = 200,
+                                        command = self.update_timer,
+                                        increment = 1,
+                                        width = 4 )
+        self.interval_sb.sb.bind("<Return>", self.update_timer) 
+        self.interval_sb.pack(side = tk.BOTTOM, expand = True, fill = tk.BOTH)
+        fr.pack(side = tk.TOP)
+
+        zd.pack()
+
+
+
+    def update_timer(self):
+        self.S.set_interval(self.interval.get())
+        self.S.reset()
 
     def disable_widgets(self, dis):
         if dis:

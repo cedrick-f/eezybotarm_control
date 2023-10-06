@@ -33,6 +33,9 @@ class ResettableTimer(object):
         #print("pause")
         self.timer.cancel()
 
+    def set_interval(self, interval):
+        self.interval = interval
+        self.reset()
 
 
 class File():
