@@ -855,7 +855,10 @@ class Application(tk.Tk):
         """ Réception infos
         """
         cmd = bytes.decode(cmd, 'utf-8')
-        typ, val = cmd.split(" ", 1)
+        try:
+            typ, val = cmd.split(" ", 1)
+        except:
+            return
         if typ == "_aa":
             try:
                 a, b = val.split(",")
@@ -864,6 +867,23 @@ class Application(tk.Tk):
             a, b = round(float(a)), round(float(b))
             self.angle_a.set(a)
             self.angle_b.set(b)
+
+            # self.bras.set_a(a)
+            # self.abras.set_a(b)
+            # self.rabras.set_a(b)
+            # self.babras1.set_a(a)
+            # self.bpoignet1.set_a(a)
+            # self.bpoignet2.set_a(b)
+            # self.dessin.draw()
+
+        elif typ == "_am":
+            try:
+                a, b = val.split(",")
+            except:
+                return
+            a, b = round(float(a)), round(float(b))
+            self.angle_mes_a.set(a)
+            self.angle_mes_b.set(b)
 
             self.bras.set_a(a)
             self.abras.set_a(b)

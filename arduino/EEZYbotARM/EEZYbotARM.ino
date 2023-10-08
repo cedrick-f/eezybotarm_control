@@ -13,26 +13,36 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x41);
 #define SERVO_FREQ 50 // Analog servos run at ~50 Hz updates
 
 /********************************************************************/
+/* Angles limites des bras et avant-bras du robot */
+const int16_t ANGLEMIN[2] = {136, -65}; 
+const int16_t ANGLEMAX[2] = {40, 19};
+const int16_t ANGLELIM[2] = {0, -30}; // angles limites de l'avant-bras quand le bras est au min et max
+
+/* Sens des moteurs */
+const int16_t  SENS[2] = {-1, 1}; 
+
+/* Pente des moteurs (rapport pulsation/angle) */
+const float  PENTE[2] = {2, 2}; 
+
+/* Pulsation à l'angle ANGLEMIN (à déterminer expérimentalement) */
+const int16_t PULSEMIN[2] = {210, 331};
+
 /* Longueurs de pulsation (pulse) et angles limites */
-/* ATTENTION : différent pour chaque robot !!! */
-const uint16_t  PULSEMIN[2] = {220, 330}; // This is the 'minimum' pulse length count (out of 4096)
-const uint16_t  PULSEMAX[2] = {400, 500}; // This is the 'maximum' pulse length count (out of 4096)
-
-const int16_t  DEGREMIN[2] = {136, -65}; 
-const int16_t  DEGREMAX[2] = {40, 19}; 
-
-const uint16_t PULSELIM[2] = {440, 480}; // positions limites sur servo 1 quand servo 0 au min et max
+/const uint16_t  PULSEMAX[2] = {SENS[0]*PENTE[0]*(ANGLEMAX[0] - ANGLEMIN[0]) + PULSEMIN[0], 
+                               SENS[1]*PENTE[1]*(ANGLEMAX[1] - ANGLEMIN[1]) + PULSEMIN[1]};
 
 /********************************************************************/
 /* Ports utilisés */
 const uint8_t SERVOPIN[2] = {15, 14};
+const uint8_t ANGLEPIN[2] = {A0, A1};
 
 /********************************************************************/
 /* État initial */
-const uint16_t PULSECENTRE[2] = {330, 460};
-uint16_t PULSE[2] = {PULSECENTRE[0], PULSECENTRE[1]}; // position des servos (initialement "centrale") en pulse
-                                // doit permettre d'atteindre les min et max des 2 axes
-uint8_t current_servo = 0;
+const int16_t ANGLECENTRE[2] = {80, 0};
+int16_t ANGLE[2] = {ANGLECENTRE[0], ANGLECENTRE[1]};// position des servos (initialement "centrale")
+int16_t ANGLE_MES[2] = {ANGLE[0], ANGLE[1]}; // Angles mesurés
+
+
 bool on = false;
 
 /********************************************************************/
@@ -57,6 +67,7 @@ boolean newData = false;
 /********************************************************************/
 void setup() {
   Serial.begin(460800);
+
   Serial.println("EezyBot Servo !");
   Serial.println("Commandes :");
   Serial.println("ad <angle degre> = consigne angle servo a");
@@ -71,7 +82,11 @@ void setup() {
   Serial.println("px = demande positions xy");
   Serial.println("pd = demande positions angulaire en degre");
   Serial.println("pp = demande consignes servo en pulse");
-
+  Serial.println();
+  Serial.print("Servo a :");
+  Serial.println(PULSEMAX[0]);
+  Serial.print("Servo b :");
+  Serial.println(PULSEMAX[1]);
   Serial.setTimeout(500);
 
   pwm.begin();
@@ -138,13 +153,13 @@ void loop() {
           strtokIndx = strtok(NULL, " "); // this continues where the previous call left off
           long pulse = atoi(strtokIndx);     // convert this part to an integer
           move_to_pulse(0, pulse);
-          pwm.setPWM(SERVOPIN[0], 0, PULSE[0]);
+          //pwm.setPWM(SERVOPIN[0], 0, PULSE[0]);
 
         } else if (strcmp(cmd,"bp")==0) {
           strtokIndx = strtok(NULL, " "); // this continues where the previous call left off
           long pulse = atoi(strtokIndx);     // convert this part to an integer
           move_to_pulse(1, pulse);
-          pwm.setPWM(SERVOPIN[1], 0, PULSE[1]);
+          //pwm.setPWM(SERVOPIN[1], 0, PULSE[1]);
 
         } else if (strcmp(cmd,"cc")==0) {
           centrer();
@@ -166,13 +181,13 @@ void loop() {
 
         } else if (strcmp(cmd,"pd")==0) {
           send_angles();
-
+          send_angles_mes();                  // envoi angles mesurés
         } else if (strcmp(cmd,"pp")==0) {
           send_pulses();
 
         } else if (strcmp(cmd,"pa")==0) {
           send_angle(0);
-
+          
         } else if (strcmp(cmd,"pb")==0) {
           send_angle(1);
         }
@@ -184,33 +199,37 @@ void loop() {
 /* envoi des positions */
 void send_pulses() {
   Serial.print("_pp ");
-  Serial.print(PULSE[0]);
+  Serial.print(to_pulse(0));
   Serial.print(",");
-  Serial.println(PULSE[1]);
+  Serial.println(to_pulse(1));
 }
 
 void send_angles() {
   Serial.print("_aa ");
-  Serial.print(pulse_to_degres(0));
+  Serial.print(ANGLE[0]);
   Serial.print(",");
-  Serial.println(pulse_to_degres(1));
-  //Serial.flush();
+  Serial.println(ANGLE[1]);
+}
+
+void send_angles_mes() {
+  Serial.print("_am ");
+  Serial.print(ANGLE_MES[0]);
+  Serial.print(",");
+  Serial.println(ANGLE_MES[1]);
 }
 
 void send_angle(uint8_t servo) {
   Serial.print("_a");
   Serial.print(servo);
   Serial.print(" ");
-  Serial.println(pulse_to_degres(servo));
-  //Serial.flush();
+  Serial.println(ANGLE[servo]);
 }
 
 void send_xy() {
   double x0, y0;
-  double alpha = to_rad(pulse_to_degres(0));
-  double theta = to_rad(pulse_to_degres(1));
+  double alpha = to_rad(ANGLE[0]);
+  double theta = to_rad(ANGLE[1]);
   angles_to_xy(x0, y0, alpha, theta);
-  //Serial.flush();
   Serial.print("_xy ");
   Serial.print(x0);
   Serial.print(",");
@@ -223,15 +242,15 @@ void send_xy() {
 /* Placement au centre */
 void centrer() {
   for (uint8_t servo = 0; servo < 2 ; servo++) {
-    pwm.setPWM(SERVOPIN[servo], 0, PULSECENTRE[servo]);
-    PULSE[servo] = PULSECENTRE[servo];
-    send_angles();
+    move_to_degres(servo, ANGLECENTRE[servo]);
+    ANGLE[servo] = ANGLECENTRE[servo];  // mise à jour position courante (consigne)
+    send_angles();                      // envoi consignes angulaires
+    send_angles_mes();                  // envoi angles mesurés
     send_xy();
   }
 }
 
 void switch_on() {
-  //centrer();
   on = true;
 }
 
@@ -252,34 +271,25 @@ bool move_to_pulse(uint8_t servo, uint16_t pulselen) {
     switch_on();
   }
   bool into = true;
-  //Serial.print("Consigne:");
-  //Serial.println(pulselen);
 
   uint16_t minpulse = min_servo(servo);
   uint16_t maxpulse = max_servo(servo);
-  /*Serial.print("Limites :");
-  Serial.print(minpulse);
-  Serial.print("\t");
-  Serial.println(maxpulse);*/
 
   if (pulselen < minpulse) {
     pulselen = minpulse;
-    //Serial.print("---");
-    //Serial.println(pulselen);
     into = false;
   }
 
   if (pulselen > maxpulse) {
     pulselen = maxpulse;
-    //Serial.print("+++");
-    //Serial.println(pulselen);
     into = false;
   }
 
-  //pwm.setPWM(SERVOPIN[servo], 0, pulselen);
-  PULSE[servo] = pulselen;
+  ANGLE[servo] = pulse_to_degres(servo, pulselen);
   send_angles();
+  send_angles_mes();                  // envoi angles mesurés
   send_xy();
+  pwm.setPWM(SERVOPIN[servo], 0, pulselen);
 
   return into;
 }
@@ -287,44 +297,34 @@ bool move_to_pulse(uint8_t servo, uint16_t pulselen) {
 /********************************************************************/
 /* Mouvements d'un axe (en degrés) */
 bool move_to_degres(uint8_t servo, int16_t angle) {
-  uint16_t pulselen = map(angle, DEGREMIN[servo], DEGREMAX[servo], PULSEMIN[servo], PULSEMAX[servo]);
-  move_to_pulse(servo, pulselen);
-  pwm.setPWM(SERVOPIN[servo], 0, PULSE[servo]);
+  uint16_t pulselen = map(angle, ANGLEMIN[servo], ANGLEMAX[servo], PULSEMIN[servo], PULSEMAX[servo]);
+  ANGLE[servo] = angle;
+  return move_to_pulse(servo, pulselen);
 }
 
 /********************************************************************/
 /* Mouvements du bras en ligne droite jusqu'aux coordonnées (x,y) */
 void move_to_XY(int16_t x1, int16_t y1) {
   double x0, y0;
-  double alpha = to_rad(pulse_to_degres(0));
-  double theta = to_rad(pulse_to_degres(1));
+  double alpha = to_rad(ANGLE[0]);
+  double theta = to_rad(ANGLE[1]);
   angles_to_xy(x0, y0, alpha, theta);
 
   double dist = sqrt(sq(double(x1)) + sq(double(y1)));
   uint16_t npas = dist/PAS;
   double pasx = (x1-x0)/npas;
   double pasy = (y1-y0)/npas;
-  //Serial.print("Nbr pas:");
-  //Serial.println(npas);
 
   double x = x0;
   double y = y0;
 
   bool into = true;
   for (uint16_t i=0; i<npas ; i++) {
-    //Serial.print("##### i=");
-    //Serial.println(i);
     xy_to_angles(alpha, theta, x, y);
-    //Serial.print(to_deg(alpha));
-    //Serial.print("\t");
-    //Serial.println(to_deg(theta));
     into &= move_to_degres(0, to_deg(alpha));
     into &= move_to_degres(1, to_deg(theta));
-    pwm.setPWM(SERVOPIN[0], 0, PULSE[0]);
-    pwm.setPWM(SERVOPIN[1], 0, PULSE[1]);
     x += pasx;
     y += pasy;
-    //if (!into) break;
     delay(10);
   }
 }
@@ -333,11 +333,6 @@ void move_to_XY(int16_t x1, int16_t y1) {
 /* Calcul (x,y) en fonction des angles */
 /* http://www.osrobotics.org/osr/kinematics/inverse_kinematics.html */
 void xy_to_angles(double &alpha, double &theta, double &x, double &y) {
-  /*Serial.print("xy_to_angles :");
-  Serial.print(x);
-  Serial.print("\t");
-  Serial.print(y);*/
-
   double ad = double(a);
   double bd = double(b);
 
@@ -357,27 +352,13 @@ void xy_to_angles(double &alpha, double &theta, double &x, double &y) {
   if (theta < -PI/2) {
     theta += PI;
   }
-  /*Serial.print("\t>>>\t");
-  Serial.print(to_deg(alpha));
-  Serial.print("\t");
-  Serial.println(to_deg(theta));*/
-
 }
 
 /********************************************************************/
 /* Calcul (x,y) en fonction des angles */
 void angles_to_xy(double &x, double &y, double &alpha, double &theta) {
-  /*Serial.print("angles_to_xy :");
-  Serial.print(to_deg(alpha));
-  Serial.print("\t");
-  Serial.print(to_deg(theta));*/
   x = double(a)*cos(alpha) + double(b)*cos(theta);
   y = double(a)*sin(alpha) + double(b)*sin(theta);
-  /*Serial.print("\t>>>\t");
-  Serial.print(x);
-  Serial.print("\t");
-  Serial.println(y);*/
-
 }
 
 /********************************************************************/
@@ -390,33 +371,39 @@ double to_deg(double rad) {
   return rad*180/PI;
 }
 
-double pulse_to_degres(uint8_t servo) {
-  return map(PULSE[servo], PULSEMIN[servo], PULSEMAX[servo], DEGREMIN[servo], DEGREMAX[servo]);
+double pulse_to_degres(uint8_t servo, uint16_t pulse) {
+  return map(pulse, PULSEMIN[servo], PULSEMAX[servo], ANGLEMIN[servo], ANGLEMAX[servo]);
+}
+
+double degres_to_pulse(uint8_t servo, int16_t degres) {
+  return map(degres, ANGLEMIN[servo], ANGLEMAX[servo], PULSEMIN[servo], PULSEMAX[servo]);
+}
+
+double to_pulse(uint8_t servo) {
+  return degres_to_pulse(servo, ANGLE[servo]);
 }
 
 
 /********************************************************************/
 /* Calcul des limites (en pulse) */
 uint16_t max_servo(uint8_t servo) {
-  uint16_t pulse = PULSE[servo];
+  uint16_t pulse = to_pulse(servo);
   if (servo == 1) {
-    pulse = min(PULSEMAX[1], PULSELIM[1]-PULSE[0]+PULSEMAX[0]);
+    pulse = min(PULSEMAX[1], degres_to_pulse(1, ANGLELIM[1])-to_pulse(0)+PULSEMAX[0]);
   } else if (servo == 0) {
-    pulse = min(PULSEMAX[0], PULSELIM[1]-PULSE[1]+PULSEMAX[0]);
+    pulse = min(PULSEMAX[0], degres_to_pulse(0, ANGLELIM[1])-to_pulse(1)+PULSEMAX[0]);
   } else {
-    //Serial.println("!!");
   }
   return pulse;
 }
 
 uint16_t min_servo(uint8_t servo) {
-  uint16_t pulse = PULSE[servo];
+  uint16_t pulse = to_pulse(servo);
   if (servo == 1) {
-    pulse = max(PULSEMIN[1], PULSELIM[0]-PULSE[0]+PULSEMIN[0]);
+    pulse = max(PULSEMIN[1], degres_to_pulse(1, ANGLELIM[0])-to_pulse(0)+PULSEMIN[0]);
   } else if (servo == 0) {
-    pulse = max(PULSEMIN[0], PULSELIM[0]-PULSE[1]+PULSEMIN[0]);
+    pulse = max(PULSEMIN[0], degres_to_pulse(0, ANGLELIM[0])-to_pulse(1)+PULSEMIN[0]);
   } else {
-    //Serial.println("!!");
   }
   return pulse;
 }
@@ -453,3 +440,22 @@ void recvWithStartEndMarkers() {
         }
     }
 }
+
+/**************************************************************************************************************************/
+/* Mesure des angles pour fermeture boucle */
+void get_angles() {
+  ANGLE_MES[0] = degres(ANGLEPIN[0]);
+  ANGLE_MES[1] = degres(ANGLEPIN[1]);
+}
+
+const float A = -3.557e-7;
+const float B = 3.947e-4;
+const float C = 0.3792;
+const float D = -34.514;
+
+float degres(int pin) {
+  int deg_mes = analogRead(pin);
+  return A*deg_mes*deg_mes*deg_mes + B*deg_mes*deg_mes + C*deg_mes + D;
+}
+
+
