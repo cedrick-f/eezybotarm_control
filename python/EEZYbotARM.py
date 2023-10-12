@@ -527,7 +527,7 @@ class Cmd(continuous_threading.ContinuousThread):
 
 
     def _run(self):
-        if not self.gui.ser:
+        if self.gui.ser is None:
             return
         if not self.f.is_empty():
             c = self.f.dequeue()
@@ -536,7 +536,7 @@ class Cmd(continuous_threading.ContinuousThread):
             if c != "of":
                 self.gui.S.reset() # redemarrage du timer d'extinction
 
-        if self.gui.ser.in_waiting:
+        if self.gui.ser is not None and self.gui.ser.in_waiting:
             self.gui.receive(self.gui.ser.readline())
 
     def add(self, cmd):
@@ -712,7 +712,7 @@ class Application(tk.Tk):
         self.coord_y_sb.pack(side = tk.BOTTOM, expand = True, fill = tk.BOTH)
         fc.pack(side = tk.LEFT, padx = 5)
 
-        # Angles
+        # Angles consigne
         fc = tk.Frame(self)
         l = tk.Label(fc, text = "Angles :")
         l.pack( side = tk.TOP, 
@@ -724,7 +724,7 @@ class Application(tk.Tk):
         self.angle_a_sb = SpinBoxLabel(fc, text = "a =",
                                         textvariable = self.angle_a, 
                                         command = self.rotate_a,
-                                        from_ = 20, to = 120,
+                                        from_ = 40, to = 136,
                                         increment = 10,
                                         width = 4)
         self.angle_a_sb.sb.bind("<Return>", self.rotate_a)
@@ -734,13 +734,36 @@ class Application(tk.Tk):
         self.angle_b_sb = SpinBoxLabel(fc, text = "b =",
                                         textvariable = self.angle_b, 
                                         command = self.rotate_b,
-                                        from_ = -40, to = 30,
+                                        from_ = -65, to = 19,
                                         increment = 10,
                                         width = 4)
         self.angle_b_sb.sb.bind("<Return>", self.rotate_b)
         self.angle_b_sb.pack(side = tk.BOTTOM, expand = True, fill = tk.BOTH)
         
         fc.pack(side = tk.LEFT, padx = 5)
+
+        # Angles mesurés
+        fc = tk.Frame(self)
+        l = tk.Label(fc, text = "mesure")
+        l.pack( side = tk.TOP, 
+                #fill = tk.BOTH,
+                padx = 2,
+                expand = False,
+                anchor = tk.W)
+        self.angle_mes_a = tk.IntVar()
+        self.angle_mes_a_sb = tk.Label(fc, text = "a =",
+                                        textvariable = self.angle_mes_a
+                                        )
+        self.angle_mes_a_sb.pack(side = tk.TOP, expand = True, fill = tk.BOTH)
+
+        self.angle_mes_b = tk.IntVar()
+        self.angle_mes_b_sb = tk.Label(fc, text = "b =",
+                                        textvariable = self.angle_mes_b
+                                        )
+        self.angle_mes_b_sb.pack(side = tk.BOTTOM, expand = True, fill = tk.BOTH)
+        
+        fc.pack(side = tk.LEFT, padx = 5)
+
 
         # Commandes
         cm = tk.Frame(self)
@@ -828,6 +851,7 @@ class Application(tk.Tk):
         self.send('cc')
 
     def switch_off(self, val=0):
+        self.S.stop()
         self.send("of")
         print("OFF")
         
@@ -854,11 +878,14 @@ class Application(tk.Tk):
     def receive(self, cmd):
         """ Réception infos
         """
-        cmd = bytes.decode(cmd, 'utf-8')
+        #print(cmd)
+        
         try:
+            cmd = bytes.decode(cmd, 'utf-8')
             typ, val = cmd.split(" ", 1)
         except:
             return
+
         if typ == "_aa":
             try:
                 a, b = val.split(",")
@@ -881,7 +908,17 @@ class Application(tk.Tk):
                 a, b = val.split(",")
             except:
                 return
-            a, b = round(float(a)), round(float(b))
+            
+            if a == 'N':
+                a = self.angle_a.get()
+            else:
+                a = round(float(a))
+
+            if b == 'N':
+                b = self.angle_b.get()
+            else:
+                b = round(float(b))    
+
             self.angle_mes_a.set(a)
             self.angle_mes_b.set(b)
 
