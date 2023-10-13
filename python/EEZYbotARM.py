@@ -563,14 +563,13 @@ class SpinBoxLabel(tk.Frame):
 
 
 
-
 ###################################################################################
 # Classe définissant l'objet représentant la fenêtre principale de l'application
 ###################################################################################
 class Application(tk.Tk):
     def __init__(self, w, h):
         super().__init__()
-        self.title("EEZYbotARM")   # Le titre de la fenêtre
+        self.title("EEZYbotARM contrôle")   # Le titre de la fenêtre
         self.w = w
         self.h = h
         self.minsize(self.w, self.h)      # taille de fenêtre
@@ -627,7 +626,7 @@ class Application(tk.Tk):
 
         # Création des widgets
         self.dessin = Dessin(self, width = self.winfo_width(),
-                                   height = self.winfo_height()-80,
+                                   height = self.winfo_height()-100,
                                    orig = (170, 140),
                                    bg = "ivory")
         self.bati = Sprite(self.dessin, 'bati.png', 
@@ -684,7 +683,14 @@ class Application(tk.Tk):
         r = 1
         # Coordonnées
         fc = tk.Frame(self)
-        l = tk.Label(fc, text = "Position :")
+        l = tk.Label(fc, text = "Position :", font='Helvetica 10 bold')
+        l.pack( side = tk.TOP, 
+                #fill = tk.BOTH,
+                padx = 2,
+                expand = False,
+                anchor = tk.W)
+
+        l = tk.Label(fc, text = "consigne")
         l.pack( side = tk.TOP, 
                 #fill = tk.BOTH,
                 padx = 2,
@@ -714,7 +720,14 @@ class Application(tk.Tk):
 
         # Angles consigne
         fc = tk.Frame(self)
-        l = tk.Label(fc, text = "Angles :")
+        l = tk.Label(fc, text = "Angles :", font='Helvetica 10 bold')
+        
+        l.pack( side = tk.TOP, 
+                #fill = tk.BOTH,
+                padx = 2,
+                expand = False,
+                anchor = tk.W)
+        l = tk.Label(fc, text = "consigne")
         l.pack( side = tk.TOP, 
                 #fill = tk.BOTH,
                 padx = 2,
@@ -744,6 +757,12 @@ class Application(tk.Tk):
 
         # Angles mesurés
         fc = tk.Frame(self)
+        l = tk.Label(fc, text = " ", font='Helvetica 10 bold')
+        l.pack( side = tk.TOP, 
+                #fill = tk.BOTH,
+                padx = 2,
+                expand = False,
+                anchor = tk.W)
         l = tk.Label(fc, text = "mesure")
         l.pack( side = tk.TOP, 
                 #fill = tk.BOTH,
@@ -767,7 +786,7 @@ class Application(tk.Tk):
 
         # Commandes
         cm = tk.Frame(self)
-        l = tk.Label(cm, text = "Commande :")
+        l = tk.Label(cm, text = "Commande :", font='Helvetica 10 bold')
         l.pack( side = tk.TOP, 
                 #fill = tk.BOTH,
                 padx = 2,
@@ -944,7 +963,7 @@ class Application(tk.Tk):
 
 
 ###################################################################################
-app = Application(540, 600)
+app = Application(540, 620)
 try:
     app.mainloop()
     time.sleep(2)

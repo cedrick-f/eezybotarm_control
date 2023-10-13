@@ -25,7 +25,10 @@ const int16_t  SENS[2] = {-1, 1};
 const float  PENTE[2] = {2, 2}; 
 
 /* Pulsation à l'angle DEGREMIN (à déterminer expérimentalement) */
-const int16_t PULSEMIN[2] = {210, 331};
+const int16_t PULSEMIN[2] = {210, 331}; // en pulse
+
+/* Décalage angulaire bras/servo (à déterminer expérimentalement) */
+const int16_t OFFSET[2] = {207, 187}; // en degrés
 
 /* Longueurs de pulsation (pulse) et angles limites */
 /* ATTENTION : différent pour chaque robot !!! */
@@ -530,14 +533,14 @@ void send_angles_mes() {
 
   int16_t m = analogRead(ANGLEPIN[0]);
   if (m > 0) { // port connecté = mesure
-    RA_a.addValue(degres(m) * SENS[0]);
+    RA_a.addValue((int16_t(degres(m)-OFFSET[0])%360) * SENS[0]);
     a = int16_t(RA_a.getAverage());
     aa = String(a);
   }
 
   m = analogRead(ANGLEPIN[1]);
   if (m > 0) { // port connecté = mesure
-    RA_b.addValue(degres(m) * SENS[1] - 188);
+    RA_b.addValue((int16_t(degres(m)-OFFSET[1])%360) * SENS[1]);
     b = int16_t(RA_b.getAverage());
     bb = String(b);
   }
