@@ -10,13 +10,13 @@
 #include "RunningAverage.h"
 
 // called this way, it uses the default address 0x40
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x41);
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x40);
 #define SERVO_FREQ 50 // Analog servos run at ~50 Hz updates
 
 /********************************************************************/
 /* Angles limites des bras et avant-bras du robot */
-const int16_t  DEGREMIN[2] = {136, -65}; 
-const int16_t  DEGREMAX[2] = {40, 19}; 
+const float  DEGREMIN[2] = {136, -65}; 
+const float  DEGREMAX[2] = {40, 19}; 
 
 /* Sens des moteurs */
 const int16_t  SENS[2] = {-1, 1}; 
@@ -25,10 +25,10 @@ const int16_t  SENS[2] = {-1, 1};
 const float  PENTE[2] = {2, 2}; 
 
 /* Pulsation à l'angle DEGREMIN (à déterminer expérimentalement) */
-const int16_t PULSEMIN[2] = {210, 331}; // en pulse
+const int16_t PULSEMIN[2] = {172, 310}; // en pulse
 
 /* Décalage angulaire bras/servo (à déterminer expérimentalement) */
-const int16_t OFFSET[2] = {207, 187}; // en degrés
+const float OFFSET[2] = {207, 188}; // en degrés
 
 /* Longueurs de pulsation (pulse) et angles limites */
 /* ATTENTION : différent pour chaque robot !!! */
@@ -39,7 +39,7 @@ const uint16_t  PULSEMAX[2] = {SENS[0]*PENTE[0]*(DEGREMAX[0] - DEGREMIN[0]) + PU
 
 
 //const uint16_t PULSELIM[2] = {440, 480}; // positions limites sur servo 1 quand servo 0 au min et max
-const int16_t ANGLELIM[2] = {0, -30}; // angles limites de l'avant-bras quand le bras est au min et max
+const float ANGLELIM[2] = {0, -30}; // angles limites de l'avant-bras quand le bras est au min et max
 
 
 /********************************************************************/
@@ -57,9 +57,9 @@ const float D = -34.514;
 /********************************************************************/
 /* État initial */
 //const uint16_t PULSECENTRE[2] = {330, 460};
-const int16_t ANGLECENTRE[2] = {80, 0};
-int16_t ANGLE[2] = {ANGLECENTRE[0], ANGLECENTRE[1]};
-int16_t ANGLE_MES[2] = {ANGLE[0], ANGLE[1]}; // Angles mesurés
+const float ANGLECENTRE[2] = {90, 0};
+float ANGLE[2] = {ANGLECENTRE[0], ANGLECENTRE[1]};
+float ANGLE_MES[2] = {ANGLE[0], ANGLE[1]}; // Angles mesurés
 const uint16_t PERIODE = 100; // période d'envoi des angles en ms
 uint16_t lt = 0;
 
@@ -163,7 +163,7 @@ void loop() {
 
         strtokIndx = strtok(tempChars," ");      // get the first part - the string
         strcpy(cmd, strtokIndx); // copy it to cmd
-        //Serial.println(cmd);
+        Serial.println(cmd);
 
         if (strcmp(cmd,"ad")==0) {
           //int angle = Serial.parseInt();
@@ -256,9 +256,9 @@ void send_angle(uint8_t servo) {
 }
 
 void send_xy() {
-  double x0, y0;
-  double alpha = to_rad(ANGLE[0]);
-  double theta = to_rad(ANGLE[1]);
+  float x0, y0;
+  float alpha = to_rad(ANGLE[0]);
+  float theta = to_rad(ANGLE[1]);
   angles_to_xy(x0, y0, alpha, theta);
   //Serial.flush();
   Serial.print("_xy ");
@@ -285,6 +285,10 @@ void centrer() {
 void switch_on() {
   //centrer();
   on = true;
+  for (uint8_t servo = 0; servo < 2 ; servo++) {
+    move_to_degres(servo, ANGLE[servo]);
+  }
+  
 }
 
 /********************************************************************/
@@ -329,41 +333,42 @@ bool move_to_pulse(uint8_t servo, uint16_t pulselen) {
   }
 
   //PULSE[servo] = pulselen;
-  ANGLE[servo] = pulse_to_degres(servo, pulselen); //map(pulselen, PULSEMIN[servo], PULSEMAX[servo], DEGREMIN[servo], DEGREMAX[servo]);
-  send_angles();
-  //send_angles_mes();                  // envoi angles mesurés
-  send_xy();
-  pwm.setPWM(SERVOPIN[servo], 0, pulselen);
-
+  if (into) {
+    ANGLE[servo] = pulse_to_degres(servo, pulselen); //map(pulselen, PULSEMIN[servo], PULSEMAX[servo], DEGREMIN[servo], DEGREMAX[servo]);
+    send_angles();
+    //send_angles_mes();                  // envoi angles mesurés
+    send_xy();
+    pwm.setPWM(SERVOPIN[servo], 0, pulselen);
+  }
+  
   return into;
 }
 
 /********************************************************************/
 /* Mouvements d'un axe (en degrés) */
-bool move_to_degres(uint8_t servo, int16_t angle) {
+bool move_to_degres(uint8_t servo, float angle) {
   uint16_t pulselen = map(angle, DEGREMIN[servo], DEGREMAX[servo], PULSEMIN[servo], PULSEMAX[servo]);
-  ANGLE[servo] = angle;
+  ANGLE[servo] = round(angle);
   return move_to_pulse(servo, pulselen);
-  //pwm.setPWM(SERVOPIN[servo], 0, pulselen);
 }
 
 /********************************************************************/
 /* Mouvements du bras en ligne droite jusqu'aux coordonnées (x,y) */
-void move_to_XY(int16_t x1, int16_t y1) {
-  double x0, y0;
-  double alpha = to_rad(ANGLE[0]);
-  double theta = to_rad(ANGLE[1]);
+void move_to_XY(float x1, float y1) {
+  float x0, y0;
+  float alpha = to_rad(ANGLE[0]);
+  float theta = to_rad(ANGLE[1]);
   angles_to_xy(x0, y0, alpha, theta);
 
-  double dist = sqrt(sq(double(x1)) + sq(double(y1)));
+  float dist = sqrt(sq(x1) + sq(y1));
   uint16_t npas = dist/PAS;
-  double pasx = (x1-x0)/npas;
-  double pasy = (y1-y0)/npas;
+  float pasx = (x1-x0)/npas;
+  float pasy = (y1-y0)/npas;
   //Serial.print("Nbr pas:");
   //Serial.println(npas);
 
-  double x = x0;
-  double y = y0;
+  float x = x0;
+  float y = y0;
 
   bool into = true;
   for (uint16_t i=0; i<npas ; i++) {
@@ -387,21 +392,21 @@ void move_to_XY(int16_t x1, int16_t y1) {
 /********************************************************************/
 /* Calcul (x,y) en fonction des angles */
 /* http://www.osrobotics.org/osr/kinematics/inverse_kinematics.html */
-void xy_to_angles(double &alpha, double &theta, double &x, double &y) {
+void xy_to_angles(float &alpha, float &theta, float &x, float &y) {
   /*Serial.print("xy_to_angles :");
   Serial.print(x);
   Serial.print("\t");
   Serial.print(y);*/
 
-  double ad = double(a);
-  double bd = double(b);
+  float ad = float(a);
+  float bd = float(b);
 
-  double x_y = sq(x)+sq(y);
-  double a_b = sq(ad)+sq(bd);
-  double a_t = -acos((x_y-a_b)/(2*ad*bd)); // 0 -- PI
+  float x_y = sq(x)+sq(y);
+  float a_b = sq(ad)+sq(bd);
+  float a_t = -acos((x_y-a_b)/(2*ad*bd)); // 0 -- PI
 
-  double k1 = ad + bd*cos(a_t);
-  double k2 = bd*sin(a_t);
+  float k1 = ad + bd*cos(a_t);
+  float k2 = bd*sin(a_t);
   alpha = atan2(y, x) - atan2(k2, k1);  // -PI/2 -- PI/2
   theta = alpha + a_t; // -3PI/2 -- PI/2
 
@@ -416,18 +421,17 @@ void xy_to_angles(double &alpha, double &theta, double &x, double &y) {
   Serial.print(to_deg(alpha));
   Serial.print("\t");
   Serial.println(to_deg(theta));*/
-
 }
 
 /********************************************************************/
 /* Calcul (x,y) en fonction des angles */
-void angles_to_xy(double &x, double &y, double &alpha, double &theta) {
+void angles_to_xy(float &x, float &y, float &alpha, float &theta) {
   /*Serial.print("angles_to_xy :");
   Serial.print(to_deg(alpha));
   Serial.print("\t");
   Serial.print(to_deg(theta));*/
-  x = double(a)*cos(alpha) + double(b)*cos(theta);
-  y = double(a)*sin(alpha) + double(b)*sin(theta);
+  x = float(a)*cos(alpha) + float(b)*cos(theta);
+  y = float(a)*sin(alpha) + float(b)*sin(theta);
   /*Serial.print("\t>>>\t");
   Serial.print(x);
   Serial.print("\t");
@@ -437,23 +441,23 @@ void angles_to_xy(double &x, double &y, double &alpha, double &theta) {
 
 /********************************************************************/
 /* Conversions pulse<>degres<>radians */
-double to_rad(double deg) {
+float to_rad(float deg) {
   return PI*deg/180;
 }
 
-double to_deg(double rad) {
+float to_deg(float rad) {
   return rad*180/PI;
 }
 
-double pulse_to_degres(uint8_t servo, uint16_t pulse) {
+float pulse_to_degres(uint8_t servo, uint16_t pulse) {
   return map(pulse, PULSEMIN[servo], PULSEMAX[servo], DEGREMIN[servo], DEGREMAX[servo]);
 }
 
-double degres_to_pulse(uint8_t servo, int16_t degres) {
+float degres_to_pulse(uint8_t servo, int16_t degres) {
   return map(degres, DEGREMIN[servo], DEGREMAX[servo], PULSEMIN[servo], PULSEMAX[servo]);
 }
 
-double to_pulse(uint8_t servo) {
+float to_pulse(uint8_t servo) {
   return degres_to_pulse(servo, ANGLE[servo]);
 }
 
@@ -525,28 +529,29 @@ float degres(int val) {
 }
 
 void send_angles_mes() {
-  int16_t a = ANGLE_MES[0];
-  int16_t b = ANGLE_MES[1];
+  float a = ANGLE_MES[0];
+  float b = ANGLE_MES[1];
 
   String aa = "N";
   String bb = "N";
 
-  int16_t m = analogRead(ANGLEPIN[0]);
-  if (m > 0) { // port connecté = mesure
-    RA_a.addValue((int16_t(degres(m)-OFFSET[0])%360) * SENS[0]);
-    a = int16_t(RA_a.getAverage());
+  int16_t am = analogRead(ANGLEPIN[0]);
+  int16_t bm = analogRead(ANGLEPIN[1]);
+
+  if (am > 0) { // port connecté = mesure
+    RA_a.addValue((degres(am)-OFFSET[0]) * SENS[0]);
+    a = RA_a.getAverage();
     aa = String(a);
   }
 
-  m = analogRead(ANGLEPIN[1]);
-  if (m > 0) { // port connecté = mesure
-    RA_b.addValue((int16_t(degres(m)-OFFSET[1])%360) * SENS[1]);
-    b = int16_t(RA_b.getAverage());
+  if (bm > 0) { // port connecté = mesure
+    RA_b.addValue((degres(bm)-OFFSET[1]) * SENS[1]);
+    b = RA_b.getAverage();
     bb = String(b);
   }
   
   uint16_t t = millis();
-  if (t-lt > PERIODE && (a != ANGLE_MES[0] || b != ANGLE_MES[1])) {
+  if (t-lt > PERIODE && (a != ANGLE_MES[0] || b != ANGLE_MES[1]) && (am + bm > 0)) {
     ANGLE_MES[0] = a;
     ANGLE_MES[1] = b;
     Serial.print("_am ");

@@ -3,7 +3,7 @@ import tkinter as tk
 import time 
 from helpers import get_ArduinoUno_ports, ResettableTimer, File
 import io
-import os
+import os, sys
 from PIL import Image, ImageTk
 import continuous_threading
 import numpy as np
@@ -32,7 +32,7 @@ class Objet():
         self.canvas  = canvas
     def calcul(self):
         pass
-    def efface(self):
+    def delete(self):
         pass
     def mousemove(self, event):
         pass
@@ -53,9 +53,11 @@ class Point(Objet):
         # On dessine l'objet
         self.draw()
 
-    def draw(self):
+    def delete(self):
         if hasattr(self, 'id'): # l'objet a déja été dessiné
             self.canvas.delete(self.id)
+
+    def draw(self):
         x, y = self.canvas.r2c(self.x, self.y)
         self.id = self.canvas.create_oval((x-self.r, y-self.r),
                                           (x+self.r, y+self.r),
@@ -84,9 +86,11 @@ class Vecteur(Objet):
         # On dessine l'objet
         self.draw()
 
-    def draw(self):
+    def delete(self):
         if hasattr(self, 'id'): # l'objet a déja été dessiné
             self.canvas.delete(self.id)
+
+    def draw(self):
         x0, y0 = self.canvas.r2c(self.x, self.y)
         x1, y1 = self.canvas.r2c(self.x+self.px, self.y+self.py)
         self.id = self.canvas.create_line(x0, y0,
@@ -125,6 +129,13 @@ class Repere(Objet):
         #                     (r*c, r*s))
         # self.axey = Vecteur(canvas, (sp.x, sp.y), 
         #                     (r*s, -r*c))
+
+
+    def delete(self):
+        self.orig.delete()
+        self.axex.delete()
+        self.axey.delete()
+
     def draw(self):
         self.orig.draw()
         self.axex.draw()
@@ -156,11 +167,13 @@ class Angle(Objet):
         self.r = 50
         self.nom = nom
 
-    def draw(self):
+    def delete(self):
         if hasattr(self, 'id'): # l'objet a déja été dessiné
             self.canvas.delete(self.id)
         if hasattr(self, 'id1'): # l'objet a déja été dessiné
             self.canvas.delete(self.id1)
+
+    def draw(self):
         x0, y0 = self.r0.orig.x - self.r, self.r0.orig.y - self.r
         x1, y1 = self.r0.orig.x + self.r, self.r0.orig.y + self.r
         x0, y0 = self.canvas.r2c(x0, y0)
@@ -431,7 +444,7 @@ class Sprite(Objet):
         #print("sprite r :", self.x + self.cx, self.y + self.cy)
         
 
-    def efface(self):
+    def delete(self):
         if hasattr(self, 'id'): # l'objet a déja été dessiné
             self.canvas.delete(self.id)
 
@@ -470,6 +483,7 @@ class Dessin(tk.Canvas):
         super().__init__(fen, width = width, height=height, bg=bg)
         self.objets = []
         self.orig = orig # pixel "canvas"
+        self.fen = fen
         fen.update_idletasks()
 
         # Liaisons des événements à des méthodes
@@ -496,10 +510,13 @@ class Dessin(tk.Canvas):
     def draw(self):
         for o in self.objets:
             o.calcul()
-        # for o in self.objets:
-        #     o.efface()
+
         for o in self.objets:
-            o.draw()
+            o.delete()
+        
+        for o in self.objets:
+            if self.fen.draw_rep.get() or (not isinstance(o, Repere) and not isinstance(o, Angle)):
+                o.draw()
         #self.after_idle(self.update)
 
     def mousemove(self, event):
@@ -518,29 +535,40 @@ class Dessin(tk.Canvas):
 
 
 
-class Cmd(continuous_threading.ContinuousThread):
+class Cmd(continuous_threading.PausableThread):
     def __init__(self, gui):
         super().__init__()
         self.gui = gui
-        # File de commandes
+        # File de commandes à envoyer
         self.f = File()
+        self.after = None
 
-
-    def _run(self):
+    def _run(self): # Boucle principale
         if self.gui.ser is None:
             return
+        
+        # émission commandes
         if not self.f.is_empty():
             c = self.f.dequeue()
             #print(">>>", c)
             self.gui.ser.write(bytes("<"+c+">", 'ascii'))
             if c != "of":
                 self.gui.S.reset() # redemarrage du timer d'extinction
+            
+            if self.after is not None:
+                self.after()
+                self.after = None    
 
+        # reception données
         if self.gui.ser is not None and self.gui.ser.in_waiting:
             self.gui.receive(self.gui.ser.readline())
 
-    def add(self, cmd):
+        
+
+    def add(self, cmd, after = None):
         self.f.enqueue(cmd)
+        self.after = after
+
 
 
 ###################################################################################
@@ -593,9 +621,13 @@ class Application(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
     
     def on_closing(self):
+        print("on_closing")
         self.switch_off()
+        print("   *")
         self.deconnecter()
+        print("   *")
         self.destroy()
+        print("   *")
 
     def mng_connexion(self):
         if self.ser:
@@ -627,7 +659,7 @@ class Application(tk.Tk):
         # Création des widgets
         self.dessin = Dessin(self, width = self.winfo_width(),
                                    height = self.winfo_height()-100,
-                                   orig = (170, 140),
+                                   orig = (210, 140),
                                    bg = "ivory")
         self.bati = Sprite(self.dessin, 'bati.png', 
                           [(418, 112), (256, 38)], (0, 0), 0)
@@ -678,19 +710,19 @@ class Application(tk.Tk):
                                 self.a_b
                                 ])
         self.dessin.pack()
-        self.dessin.draw()
+        
 
         r = 1
         # Coordonnées
         fc = tk.Frame(self)
-        l = tk.Label(fc, text = "Position :", font='Helvetica 10 bold')
-        l.pack( side = tk.TOP, 
+        lf = tk.LabelFrame(fc, text = "Position", font='Helvetica 10 bold')
+        lf.pack( side = tk.TOP, 
                 #fill = tk.BOTH,
                 padx = 2,
                 expand = False,
                 anchor = tk.W)
 
-        l = tk.Label(fc, text = "consigne")
+        l = tk.Label(lf, text = "consigne")
         l.pack( side = tk.TOP, 
                 #fill = tk.BOTH,
                 padx = 2,
@@ -698,7 +730,7 @@ class Application(tk.Tk):
                 anchor = tk.W)
 
         self.coord_x = tk.IntVar()
-        self.coord_x_sb = SpinBoxLabel(fc, text = "x =",
+        self.coord_x_sb = SpinBoxLabel(lf, text = "x =",
                                         textvariable = self.coord_x, 
                                         command = self.move_to,
                                         from_ = 0, to = 200,
@@ -708,7 +740,7 @@ class Application(tk.Tk):
         self.coord_x_sb.pack(side = tk.TOP, expand = True, fill = tk.BOTH)
 
         self.coord_y = tk.IntVar(value=0)
-        self.coord_y_sb = SpinBoxLabel(fc, text = "y =",
+        self.coord_y_sb = SpinBoxLabel(lf, text = "y =",
                                         textvariable = self.coord_y, 
                                         from_ = 0, to = 200,
                                         command = self.move_to,
@@ -718,15 +750,16 @@ class Application(tk.Tk):
         self.coord_y_sb.pack(side = tk.BOTTOM, expand = True, fill = tk.BOTH)
         fc.pack(side = tk.LEFT, padx = 5)
 
-        # Angles consigne
-        fc = tk.Frame(self)
-        l = tk.Label(fc, text = "Angles :", font='Helvetica 10 bold')
-        
-        l.pack( side = tk.TOP, 
+        # Angles ################
+        fa = tk.Frame(self)
+        lf = tk.LabelFrame(fa, text = "Angles", font='Helvetica 10 bold')
+        lf.pack( side = tk.TOP, 
                 #fill = tk.BOTH,
                 padx = 2,
                 expand = False,
                 anchor = tk.W)
+
+        fc = tk.Frame(lf)
         l = tk.Label(fc, text = "consigne")
         l.pack( side = tk.TOP, 
                 #fill = tk.BOTH,
@@ -756,13 +789,7 @@ class Application(tk.Tk):
         fc.pack(side = tk.LEFT, padx = 5)
 
         # Angles mesurés
-        fc = tk.Frame(self)
-        l = tk.Label(fc, text = " ", font='Helvetica 10 bold')
-        l.pack( side = tk.TOP, 
-                #fill = tk.BOTH,
-                padx = 2,
-                expand = False,
-                anchor = tk.W)
+        fc = tk.Frame(lf)
         l = tk.Label(fc, text = "mesure")
         l.pack( side = tk.TOP, 
                 #fill = tk.BOTH,
@@ -783,6 +810,7 @@ class Application(tk.Tk):
         
         fc.pack(side = tk.LEFT, padx = 5)
 
+        fa.pack(side = tk.LEFT, padx = 5)
 
         # Commandes
         cm = tk.Frame(self)
@@ -837,12 +865,24 @@ class Application(tk.Tk):
                                         increment = 1,
                                         width = 4 )
         self.interval_sb.sb.bind("<Return>", self.update_timer) 
-        self.interval_sb.pack(side = tk.BOTTOM, expand = True, fill = tk.BOTH)
+        self.interval_sb.pack(side = tk.BOTTOM, expand = True, fill = tk.BOTH, anchor=tk.W)
+
+        self.boucle_fermee = tk.BooleanVar(value=False)
+        self.boucle_fermee_cb = tk.Checkbutton(fr, text = "Boucle fermée",
+                                        variable = self.boucle_fermee)
+        self.boucle_fermee_cb.pack(side = tk.BOTTOM, expand = True, fill = tk.BOTH)
+
+        self.draw_rep = tk.BooleanVar(value=True)
+        self.draw_rep_cb = tk.Checkbutton(fr, text = "Dessiner repères",
+                                        variable = self.draw_rep,
+                                        command = self.dessin.draw)
+        self.draw_rep_cb.pack(side = tk.BOTTOM, expand = True, fill = tk.BOTH, anchor=tk.W)
+
         fr.pack(side = tk.TOP)
 
         zd.pack()
 
-
+        self.dessin.draw()
 
     def update_timer(self):
         self.S.set_interval(self.interval.get())
@@ -871,10 +911,12 @@ class Application(tk.Tk):
 
     def switch_off(self, val=0):
         self.S.stop()
-        self.send("of")
+        self.send("of", after = self.T.stop)
+        #self.T.stop()
         print("OFF")
         
     def switch_on(self, val=0):
+        print("ON")
         self.centrer()
 
     def send_command(self, val):
@@ -895,9 +937,9 @@ class Application(tk.Tk):
         self.send("bd " + b)
 
     def receive(self, cmd):
-        """ Réception infos
+        """ Réception données
         """
-        #print(cmd)
+        print(cmd)
         
         try:
             cmd = bytes.decode(cmd, 'utf-8')
@@ -914,33 +956,39 @@ class Application(tk.Tk):
             self.angle_a.set(a)
             self.angle_b.set(b)
 
-            # self.bras.set_a(a)
-            # self.abras.set_a(b)
-            # self.rabras.set_a(b)
-            # self.babras1.set_a(a)
-            # self.bpoignet1.set_a(a)
-            # self.bpoignet2.set_a(b)
-            # self.dessin.draw()
+            if not self.boucle_fermee.get():
+                self.bras.set_a(a)
+                self.abras.set_a(b)
+                self.rabras.set_a(b)
+                self.babras1.set_a(a)
+                self.bpoignet1.set_a(a)
+                self.bpoignet2.set_a(b)
+                self.dessin.draw()
 
+        # Angles mesurés
+        #  format : "_am a b"
+        #  avec a et b = angles mesurés en degrés
         elif typ == "_am":
             try:
                 a, b = val.split(",")
             except:
                 return
             
-            if a == 'N':
+            if a == 'N' or not self.boucle_fermee.get():
                 a = self.angle_a.get()
             else:
                 a = round(float(a))
 
-            if b == 'N':
+            if b == 'N' or not self.boucle_fermee.get():
                 b = self.angle_b.get()
             else:
-                b = round(float(b))    
+                b = round(float(b))
 
-            self.angle_mes_a.set(a)
-            self.angle_mes_b.set(b)
-
+            if self.boucle_fermee.get():
+                self.angle_mes_a.set(a)
+                self.angle_mes_b.set(b)
+            
+            # On redessine ...
             self.bras.set_a(a)
             self.abras.set_a(b)
             self.rabras.set_a(b)
@@ -958,17 +1006,23 @@ class Application(tk.Tk):
             self.coord_x.set(x)
             self.coord_y.set(y)
 
-    def send(self, cmd):
-        self.T.add(cmd)
+    def send(self, cmd, after = None):
+        self.T.start()
+        self.T.add(cmd, after = after)
 
 
 ###################################################################################
-app = Application(540, 620)
+app = Application(590, 620)
 try:
     app.mainloop()
     time.sleep(2)
     app.switch_on()
 finally:
+    print("fin")
     app.switch_off()
+    print("  +")
     if app.ser is not None:
+        print("  +")
         app.ser.close()
+    print("fini")
+    sys.exit()
