@@ -39,7 +39,7 @@ const uint16_t  PULSEMAX[2] = {SENS[0]*PENTE[0]*(DEGREMAX[0] - DEGREMIN[0]) + PU
 
 
 //const uint16_t PULSELIM[2] = {440, 480}; // positions limites sur servo 1 quand servo 0 au min et max
-const float ANGLELIM[2] = {0, -30}; // angles limites de l'avant-bras quand le bras est au min et max
+const float ANGLELIM[2] = {-10, -5}; // angles limites de l'avant-bras quand le bras est au min et max
 
 
 /********************************************************************/
@@ -59,6 +59,9 @@ const float D = -34.514;
 //const uint16_t PULSECENTRE[2] = {330, 460};
 const float ANGLECENTRE[2] = {90, 0};
 float ANGLE[2] = {ANGLECENTRE[0], ANGLECENTRE[1]};
+uint16_t LASTANGLE[2] = {360, 360};
+uint16_t LASTPULSE[2] = {0, 0};
+
 float ANGLE_MES[2] = {ANGLE[0], ANGLE[1]}; // Angles mesurés
 const uint16_t PERIODE = 100; // période d'envoi des angles en ms
 uint16_t lt = 0;
@@ -71,6 +74,7 @@ RunningAverage RA_b(RA_L);
                                 // doit permettre d'atteindre les min et max des 2 axes
 uint8_t current_servo = 0;
 bool on = false;
+bool force = true;
 
 /********************************************************************/
 /* Dimensions du robot */
@@ -78,8 +82,8 @@ const uint8_t a = 135; // mm
 const uint8_t b = 147; // mm
 
 #define PI 3.1415926535897932384626433832795
-#define PAS 2  // pas de mouvement (mm)
-#define VIT 10 // vitesse de mouvement (mm/s)
+const uint8_t PAS = 1;  // pas de mouvement (mm)
+//#define VIT 10 // vitesse de mouvement (mm/s)
 
 /********************************************************************/
 /* Pour réception données */
@@ -169,13 +173,24 @@ void loop() {
           //int angle = Serial.parseInt();
           strtokIndx = strtok(NULL, " "); // this continues where the previous call left off
           int angle = atoi(strtokIndx);     // convert this part to an integer
-          move_to_degres(0, angle);
+          if (dans_zone(angle, ANGLE[1])) {
+            move_to_degres(0, angle);
+          } 
+          send_angles();
+          send_xy();
+          
+          
 
         } else if (strcmp(cmd,"bd")==0) {
           //int angle = Serial.parseInt();
           strtokIndx = strtok(NULL, " "); // this continues where the previous call left off
           int angle = atoi(strtokIndx);     // convert this part to an integer
-          move_to_degres(1, angle);
+          if (dans_zone(ANGLE[0], angle)) {
+            move_to_degres(1, angle);
+          }
+          send_angles();
+          send_xy();
+          
 
         } else if (strcmp(cmd,"ar")==0) {
           // statements
@@ -239,9 +254,9 @@ void send_pulses() {
 
 void send_angles() {
   Serial.print("_aa ");
-  Serial.print(ANGLE[0]);
+  Serial.print(round(ANGLE[0]));
   Serial.print(",");
-  Serial.println(ANGLE[1]);
+  Serial.println(round(ANGLE[1]));
   //Serial.flush();
 }
 
@@ -251,7 +266,7 @@ void send_angle(uint8_t servo) {
   Serial.print("_a");
   Serial.print(servo);
   Serial.print(" ");
-  Serial.println(ANGLE[servo]);
+  Serial.println(round(ANGLE[servo]));
   //Serial.flush();
 }
 
@@ -262,9 +277,9 @@ void send_xy() {
   angles_to_xy(x0, y0, alpha, theta);
   //Serial.flush();
   Serial.print("_xy ");
-  Serial.print(x0);
+  Serial.print(round(x0));
   Serial.print(",");
-  Serial.println(y0);
+  Serial.println(round(y0));
   //
 }
 
@@ -303,22 +318,26 @@ void switch_off() {
 
 /********************************************************************/
 /* Mouvements d'un axe (en pulse) */
-bool move_to_pulse(uint8_t servo, uint16_t pulselen) {
+void move_to_pulse(uint8_t servo, uint16_t pulselen) {
   if (!on) {
     switch_on();
   }
-  bool into = true;
+  pwm.setPWM(SERVOPIN[servo], 0, pulselen);
+  
+
+
+  //bool into = true;
   //Serial.print("Consigne:");
   //Serial.println(pulselen);
 
-  uint16_t minpulse = min_servo(servo);
-  uint16_t maxpulse = max_servo(servo);
+  //uint16_t minpulse = min_servo(servo);
+  //uint16_t maxpulse = max_servo(servo);
   /*Serial.print("Limites :");
   Serial.print(minpulse);
   Serial.print("\t");
   Serial.println(maxpulse);*/
 
-  if (pulselen < minpulse) {
+  /*if (pulselen < minpulse) {
     pulselen = minpulse;
     //Serial.print("---");
     //Serial.println(pulselen);
@@ -330,37 +349,92 @@ bool move_to_pulse(uint8_t servo, uint16_t pulselen) {
     //Serial.print("+++");
     //Serial.println(pulselen);
     into = false;
-  }
+  }*/
 
   //PULSE[servo] = pulselen;
-  if (into) {
-    ANGLE[servo] = pulse_to_degres(servo, pulselen); //map(pulselen, PULSEMIN[servo], PULSEMAX[servo], DEGREMIN[servo], DEGREMAX[servo]);
+  /*float last = ANGLE[servo];
+  //ANGLE[servo] = pulse_to_degres(servo, pulselen); //map(pulselen, PULSEMIN[servo], PULSEMAX[servo], DEGREMIN[servo], DEGREMAX[servo]);
+  if (force || ANGLE[servo] != last) {
     send_angles();
     //send_angles_mes();                  // envoi angles mesurés
     send_xy();
     pwm.setPWM(SERVOPIN[servo], 0, pulselen);
+    if (servo == 1) {
+      force = false;
+    }
   }
-  
-  return into;
+  return into;*/
 }
+bool dans_zone(float angle0, float angle1) {
+  float mini0, maxi0, mini1, maxi1;
+  mini0 = max(DEGREMAX[0], angle1 - (ANGLELIM[1] - DEGREMAX[0]));
+  maxi0 = min(DEGREMIN[0], angle1 - (ANGLELIM[0] - DEGREMIN[0]));
+  mini1 = max(DEGREMIN[1], angle0 + (ANGLELIM[0] - DEGREMIN[0]));
+  maxi1 = min(DEGREMAX[1], angle0 + (ANGLELIM[1] - DEGREMAX[0]));
+  return angle0 > mini0 && angle1 > mini1 && angle0 < maxi0 && angle1 < maxi1;
+}
+
 
 /********************************************************************/
 /* Mouvements d'un axe (en degrés) */
-bool move_to_degres(uint8_t servo, float angle) {
+void move_to_degres(uint8_t servo, float angle) {
+  /*float mini, maxi;
+  if (servo == 0) {
+    mini = max(DEGREMAX[0], ANGLE[1] - (ANGLELIM[1] - DEGREMAX[0]));
+    maxi = min(DEGREMIN[0], ANGLE[1] - (ANGLELIM[0] - DEGREMIN[0]));
+  } else {
+    mini = max(DEGREMIN[1], ANGLE[0] + (ANGLELIM[0] - DEGREMIN[0]));
+    maxi = min(DEGREMAX[1], ANGLE[0] + (ANGLELIM[1] - DEGREMAX[0]));
+  };
+  /*Serial.print("mini-maxi ");
+  Serial.print(servo);
+  Serial.print(":");
+  Serial.print(mini);
+  Serial.print("_");
+  Serial.println(maxi);
+  bool into = true;
+  if (angle > maxi) {
+    angle = maxi;
+    //Serial.print("+++");
+    //Serial.println(angle);
+    into = false;
+  };
+
+  if (angle < mini) {
+    angle = mini;
+    //Serial.print("---");
+    //Serial.println(angle);
+    into = false;
+  };*/
+  
+  ANGLE[servo] = angle;
+  if (uint16_t(round(ANGLE[servo])) != LASTANGLE[servo]) {
+    send_angles();
+    send_xy();
+    LASTANGLE[servo] = round(ANGLE[servo]);
+  }
+
   uint16_t pulselen = map(angle, DEGREMIN[servo], DEGREMAX[servo], PULSEMIN[servo], PULSEMAX[servo]);
-  ANGLE[servo] = round(angle);
-  return move_to_pulse(servo, pulselen);
+  if (force || LASTPULSE[servo] != pulselen) {
+    move_to_pulse(servo, pulselen);
+    if (servo == 1) {
+      force = false;
+    }
+    LASTPULSE[servo] = pulselen;
+  };
 }
 
 /********************************************************************/
-/* Mouvements du bras en ligne droite jusqu'aux coordonnées (x,y) */
+/* Mouvements du bras en ligne droite jusqu'aux coordonnées (x1,y1) */
 void move_to_XY(float x1, float y1) {
   float x0, y0;
   float alpha = to_rad(ANGLE[0]);
   float theta = to_rad(ANGLE[1]);
   angles_to_xy(x0, y0, alpha, theta);
 
-  float dist = sqrt(sq(x1) + sq(y1));
+  float dist = sqrt(sq(x1-x0) + sq(y1-y0));
+  //Serial.print("Dist:");
+  //Serial.println(dist);
   uint16_t npas = dist/PAS;
   float pasx = (x1-x0)/npas;
   float pasy = (y1-y0)/npas;
@@ -370,21 +444,24 @@ void move_to_XY(float x1, float y1) {
   float x = x0;
   float y = y0;
 
-  bool into = true;
-  for (uint16_t i=0; i<npas ; i++) {
+  for (uint16_t i=1; i<=npas ; i++) {
     //Serial.print("##### i=");
     //Serial.println(i);
     xy_to_angles(alpha, theta, x, y);
     //Serial.print(to_deg(alpha));
     //Serial.print("\t");
     //Serial.println(to_deg(theta));
-    into &= move_to_degres(0, to_deg(alpha));
-    into &= move_to_degres(1, to_deg(theta));
-    //pwm.setPWM(SERVOPIN[0], 0, PULSE[0]);
-    //pwm.setPWM(SERVOPIN[1], 0, PULSE[1]);
-    x += pasx;
-    y += pasy;
-    //if (!into) break;
+    if (dans_zone(to_deg(alpha), to_deg(theta))) {
+      move_to_degres(0, to_deg(alpha));
+      move_to_degres(1, to_deg(theta));
+      x = pasx*i + x0;
+      y = pasy*i + y0;
+    } else {
+      send_angles();
+      send_xy();
+      Serial.println("OUT");
+      break;
+    };
     delay(10);
   }
 }
@@ -450,11 +527,13 @@ float to_deg(float rad) {
 }
 
 float pulse_to_degres(uint8_t servo, uint16_t pulse) {
-  return map(pulse, PULSEMIN[servo], PULSEMAX[servo], DEGREMIN[servo], DEGREMAX[servo]);
+  return (float(pulse) - float(PULSEMIN[servo])) * (float(DEGREMAX[servo]) - float(DEGREMIN[servo])) / (float(PULSEMAX[servo]) - float(PULSEMIN[servo])) + float(DEGREMIN[servo]);
+  //return map(pulse, PULSEMIN[servo], PULSEMAX[servo], DEGREMIN[servo], DEGREMAX[servo]);
 }
 
 float degres_to_pulse(uint8_t servo, int16_t degres) {
-  return map(degres, DEGREMIN[servo], DEGREMAX[servo], PULSEMIN[servo], PULSEMAX[servo]);
+  return (float(degres) - float(DEGREMIN[servo])) * (float(PULSEMAX[servo]) - float(PULSEMIN[servo])) / (float(DEGREMAX[servo]) - float(DEGREMIN[servo])) + float(PULSEMIN[servo]);
+  //return map(degres, DEGREMIN[servo], DEGREMAX[servo], PULSEMIN[servo], PULSEMAX[servo]);
 }
 
 float to_pulse(uint8_t servo) {
@@ -464,7 +543,7 @@ float to_pulse(uint8_t servo) {
 
 /********************************************************************/
 /* Calcul des limites (en pulse) */
-uint16_t max_servo(uint8_t servo) {
+/*uint16_t max_servo(uint8_t servo) {
   uint16_t pulse = to_pulse(servo);
   if (servo == 1) {
     pulse = min(PULSEMAX[1], degres_to_pulse(1, ANGLELIM[1])-to_pulse(0)+PULSEMAX[0]);
@@ -486,7 +565,7 @@ uint16_t min_servo(uint8_t servo) {
     //Serial.println("!!");
   }
   return pulse;
-}
+}*/
 
 
 void recvWithStartEndMarkers() {

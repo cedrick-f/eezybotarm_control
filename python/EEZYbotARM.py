@@ -386,8 +386,6 @@ class Sprite(Objet):
             self.x = x - self.dx
             self.y = y - self.dy
 
-        #self.draw()
-
 
     def mousedown(self, event):
         """ Actions réalisées quand le bouton de la souris est appuyé
@@ -435,21 +433,16 @@ class Sprite(Objet):
             self.pos_cnv = self.canvas.r2c(*v)
         else:
             self.modif_p = False
-        
-        # print(img.size)
-        # self.tkimage.__size = img.size
-        # self.tkimage.paste(img)
 
         self.tkimage = ImageTk.PhotoImage(img)
         #print("sprite r :", self.x + self.cx, self.y + self.cy)
         
 
     def delete(self):
-        if hasattr(self, 'id'): # l'objet a déja été dessiné
+        if hasattr(self, 'id'):# and self.modif_a: # l'objet a déja été dessiné
             self.canvas.delete(self.id)
 
     def draw(self):
-        # pass
         # if hasattr(self, 'id'): # l'objet a déja été dessiné
         #     self.canvas.moveto(self.id, *self.pos_cnv)
         if True:#self.modif_a or self.modif_p:
@@ -654,8 +647,6 @@ class Application(tk.Tk):
 
     # Méthode de création des widgets
     def createWidgets(self):
-        
-
         # Création des widgets
         self.dessin = Dessin(self, width = self.winfo_width(),
                                    height = self.winfo_height()-100,
@@ -733,7 +724,7 @@ class Application(tk.Tk):
         self.coord_x_sb = SpinBoxLabel(lf, text = "x =",
                                         textvariable = self.coord_x, 
                                         command = self.move_to,
-                                        from_ = 0, to = 200,
+                                        from_ = 0, to = 300,
                                         increment = 10,
                                         width = 4)
         self.coord_x_sb.sb.bind("<Return>", self.move_to) 
@@ -742,7 +733,7 @@ class Application(tk.Tk):
         self.coord_y = tk.IntVar(value=0)
         self.coord_y_sb = SpinBoxLabel(lf, text = "y =",
                                         textvariable = self.coord_y, 
-                                        from_ = 0, to = 200,
+                                        from_ = 0, to = 300,
                                         command = self.move_to,
                                         increment = 10,
                                         width = 4 )
@@ -797,13 +788,13 @@ class Application(tk.Tk):
                 expand = False,
                 anchor = tk.W)
         self.angle_mes_a = tk.IntVar()
-        self.angle_mes_a_sb = tk.Label(fc, text = "a =",
+        self.angle_mes_a_sb = tk.Label(fc, text = "a =", state='disabled',
                                         textvariable = self.angle_mes_a
                                         )
         self.angle_mes_a_sb.pack(side = tk.TOP, expand = True, fill = tk.BOTH)
 
         self.angle_mes_b = tk.IntVar()
-        self.angle_mes_b_sb = tk.Label(fc, text = "b =",
+        self.angle_mes_b_sb = tk.Label(fc, text = "b =", state='disabled',
                                         textvariable = self.angle_mes_b
                                         )
         self.angle_mes_b_sb.pack(side = tk.BOTTOM, expand = True, fill = tk.BOTH)
@@ -842,7 +833,7 @@ class Application(tk.Tk):
         self.centerButton.pack(side = tk.LEFT)
 
         # Un bouton pour éteindre les moteurs
-        self.offButton = tk.Button(fb, text = "Eteindre",
+        self.offButton = tk.Button(fb, text = "Éteindre",
                                    command = self.switch_off)
         self.offButton.pack(side = tk.LEFT)
 
@@ -865,18 +856,19 @@ class Application(tk.Tk):
                                         increment = 1,
                                         width = 4 )
         self.interval_sb.sb.bind("<Return>", self.update_timer) 
-        self.interval_sb.pack(side = tk.BOTTOM, expand = True, fill = tk.BOTH, anchor=tk.W)
+        self.interval_sb.pack(side = tk.BOTTOM, expand = True, fill = tk.BOTH)
 
         self.boucle_fermee = tk.BooleanVar(value=False)
-        self.boucle_fermee_cb = tk.Checkbutton(fr, text = "Boucle fermée",
-                                        variable = self.boucle_fermee)
-        self.boucle_fermee_cb.pack(side = tk.BOTTOM, expand = True, fill = tk.BOTH)
+        self.boucle_fermee_cb = tk.Checkbutton(fr, text = "Boucle fermée", 
+                                        variable = self.boucle_fermee,
+                                        command=self.setBF)
+        self.boucle_fermee_cb.pack(side = tk.BOTTOM, expand = False, fill = None, anchor=tk.W)
 
         self.draw_rep = tk.BooleanVar(value=True)
-        self.draw_rep_cb = tk.Checkbutton(fr, text = "Dessiner repères",
+        self.draw_rep_cb = tk.Checkbutton(fr, text = "Dessiner repères", 
                                         variable = self.draw_rep,
                                         command = self.dessin.draw)
-        self.draw_rep_cb.pack(side = tk.BOTTOM, expand = True, fill = tk.BOTH, anchor=tk.W)
+        self.draw_rep_cb.pack(side = tk.BOTTOM, expand = False, fill = None, anchor=tk.W)
 
         fr.pack(side = tk.TOP)
 
@@ -905,6 +897,13 @@ class Application(tk.Tk):
         self.angle_a_sb.sb.config(state=st)
         self.angle_b_sb.sb.config(state=st)
 
+    def setBF(self):
+        if self.boucle_fermee.get():
+            self.angle_mes_a_sb.configure(state = 'normal')
+            self.angle_mes_b_sb.configure(state = 'normal')
+        else:
+            self.angle_mes_a_sb.configure(state = 'disabled')
+            self.angle_mes_b_sb.configure(state = 'disabled')
 
     def centrer(self, val=0):
         self.send('cc')
@@ -952,7 +951,7 @@ class Application(tk.Tk):
                 a, b = val.split(",")
             except:
                 return
-            a, b = round(float(a)), round(float(b))
+            a, b = int(a), int(b)
             self.angle_a.set(a)
             self.angle_b.set(b)
 
@@ -1002,7 +1001,7 @@ class Application(tk.Tk):
                 x, y = val.split(",")
             except:
                 return
-            x, y = round(float(x)), round(float(y))
+            x, y = int(x), int(y)
             self.coord_x.set(x)
             self.coord_y.set(y)
 
