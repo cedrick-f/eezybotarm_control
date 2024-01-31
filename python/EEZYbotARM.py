@@ -10,6 +10,8 @@ import numpy as np
 #import threading
 
 DIRPATH = 'python'
+#IMAGEPATH = os.path.join(os.path.dirname(__file__), "images")
+IMAGEPATH = "images"
 SCALE = 0.3
 DELAY_DEFAULT = 30
 
@@ -298,7 +300,7 @@ class Sprite(Objet):
         #self.canvas.add_objet(self)
 
         # image
-        self.img = Image.open(os.path.join(DIRPATH, fname))
+        self.img = Image.open(os.path.join(IMAGEPATH, fname))
         width, height = self.img.size
         self.img = self.img.resize((scale(width), scale(height)))
         # self.tkimage = ImageTk.PhotoImage(self.img)
@@ -614,13 +616,13 @@ class Application(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
     
     def on_closing(self):
-        print("on_closing")
+        #print("on_closing")
         self.switch_off()
-        print("   *")
+        #print("   *")
         self.deconnecter()
-        print("   *")
+        #print("   *")
         self.destroy()
-        print("   *")
+        #print("   *")
 
     def mng_connexion(self):
         if self.ser:
@@ -912,10 +914,10 @@ class Application(tk.Tk):
         self.S.stop()
         self.send("of", after = self.T.stop)
         #self.T.stop()
-        print("OFF")
+        #print("OFF")
         
     def switch_on(self, val=0):
-        print("ON")
+        #print("ON")
         self.centrer()
 
     def send_command(self, val):
@@ -938,7 +940,7 @@ class Application(tk.Tk):
     def receive(self, cmd):
         """ Réception données
         """
-        print(cmd)
+        #print(cmd)
         
         try:
             cmd = bytes.decode(cmd, 'utf-8')
@@ -1017,11 +1019,11 @@ try:
     time.sleep(2)
     app.switch_on()
 finally:
-    print("fin")
+    #print("fin")
     app.switch_off()
-    print("  +")
+    #print("  +")
     if app.ser is not None:
-        print("  +")
+        #print("  +")
         app.ser.close()
-    print("fini")
+    #print("fini")
     sys.exit()

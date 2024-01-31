@@ -14,6 +14,15 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x40);
 #define SERVO_FREQ 50 // Analog servos run at ~50 Hz updates
 
 /********************************************************************/
+/* Version du robot */
+/*  0 : BLEU  
+/*  1 : ROUGE  
+/*  2 : JAUNE  
+/*  3 : VERT  
+*/
+#define ROBOT 0
+
+/********************************************************************/
 /* Angles limites des bras et avant-bras du robot */
 const float  DEGREMIN[2] = {136, -65}; 
 const float  DEGREMAX[2] = {40, 19}; 
@@ -25,10 +34,19 @@ const int16_t  SENS[2] = {-1, 1};
 const float  PENTE[2] = {2, 2}; 
 
 /* Pulsation à l'angle DEGREMIN (à déterminer expérimentalement) */
-const int16_t PULSEMIN[2] = {172, 310}; // en pulse
+#if ROBOT == 0 // BLEU
+const float PULSEMIN[2] = {210, 331}; // en pulse
+#elif ROBOT == 1 // ROUGE
+const float PULSEMIN[2] = {172, 310}; // en pulse
+#elif ROBOT == 2 // JAUNE
+const float PULSEMIN[2] = {242, 360}; // en pulse
+#elif ROBOT == 3 // VERT
+const float PULSEMIN[2] = {220, 250}; // en pulse
+#endif
 
-/* Décalage angulaire bras/servo (à déterminer expérimentalement) */
+/* Décalage angulaire bras/servo (à déterminer expérimentalement ou bien DEGREMIN seulement) */
 const float OFFSET[2] = {207, 188}; // en degrés
+
 
 /* Longueurs de pulsation (pulse) et angles limites */
 /* ATTENTION : différent pour chaque robot !!! */
@@ -45,6 +63,8 @@ const float ANGLELIM[2] = {-10, -5}; // angles limites de l'avant-bras quand le 
 /********************************************************************/
 /* Ports utilisés */
 const uint8_t SERVOPIN[2] = {15, 14};
+
+
 const uint8_t ANGLEPIN[2] = {A0, A1};
 
 /********************************************************************/

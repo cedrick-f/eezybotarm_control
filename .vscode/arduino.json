@@ -1,5 +1,5 @@
 {
     "board": "arduino:avr:uno",
-    "port": "COM13",
+    "port": "COM9",
     "sketch": "arduino\\EEZYbotARM\\EEZYbotARM.ino"
 }
